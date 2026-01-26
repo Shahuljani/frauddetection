@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecurePay | Fraud Detection AI</title>
+
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #635bff;
+            --dark: #0a2540;
+            --light-bg: #f6f9fc;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --text-main: #425466;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--light-bg);
+            color: var(--text-main);
+            line-height: 1.6;
+        }
+
+        header {
+            background: var(--dark);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+            border-bottom: 4px solid var(--primary);
+        }
+
+        header h1 { margin: 0; font-size: 2.2rem; letter-spacing: -1px; }
+
+        nav { margin-top: 20px; }
+        nav a {
+            color: #adbdcc;
+            margin: 0 15px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        nav a:hover { color: white; }
+
+        section {
+            padding: 50px 20px;
+            max-width: 1100px;
+            margin: auto;
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .section-title h2 { color: var(--dark); font-size: 2rem; margin-bottom: 10px; }
+
+        /* Form Styling */
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(50,50,93,.1), 0 5px 15px rgba(0,0,0,.07);
+            max-width: 800px;
+            margin: -60px auto 40px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } }
+
+        label { display: block; margin-bottom: 5px; font-weight: 600; color: var(--dark); font-size: 0.9rem; }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e6ebf1;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .btn-group { margin-top: 30px; display: flex; gap: 15px; }
+
+        button {
+            flex: 1;
+            padding: 15px;
+            font-weight: 600;
+            font-size: 1rem;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+        }
+
+        .btn-predict { background: var(--primary); color: white; }
+        .btn-clear { background: #e6ebf1; color: var(--text-main); }
+        button:hover { opacity: 0.9; }
+        button:active { transform: scale(0.98); }
+
+        /* Loader & Results */
+        .loader {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        .result {
+            display: none;
+            margin-bottom: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .result.show { display: block; }
+        .res-fraud { background: #fee2e2; color: var(--danger); border: 1px solid #fecaca; }
+        .res-safe { background: #dcfce7; color: var(--success); border: 1px solid #bbf7d0; }
+
+        /* Info Cards */
+        .grid-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .card h3 { color: var(--dark); margin-top: 0; }
+
+        code {
+            background: #f1f4f8;
+            padding: 15px;
+            border-radius: 6px;
+            display: block;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            margin: 15px 0;
+            color: #2d3748;
+        }
+
+        footer {
+            background: var(--dark);
+            color: #8898aa;
+            text-align: center;
+            padding: 40px 20px;
+            margin-top: 60px;
+        }
+    </style>
+
+    <script>
+        // Smooth scroll for nav
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({ behavior: 'smooth' });
+            });
+        });
+
+        function showLoader() {
+            document.getElementById("loader").style.display = "block";
+            document.getElementById("predictBtn").disabled = true;
+        }
+
+        function clearForm() {
+            document.getElementById("predictForm").reset();
+            const resultBox = document.getElementById("resultBox");
+            if(resultBox) resultBox.classList.remove("show");
+            document.getElementById("predictBtn").disabled = false;
+        }
+
+        function fillTestCase(tc) {
+            if (tc === 1) setValues(1, "PAYMENT", 500, 10000, 9500, 2000, 2500);
+            else setValues(10, "TRANSFER", 900000, 900000, 0, 0, 0);
+            window.scrollTo({ top: 150, behavior: 'smooth' });
+        }
+
+        function setValues(step, type, amount, o1, n1, o2, n2) {
+            document.querySelector("[name=step]").value = step;
+            document.querySelector("[name=type]").value = type;
+            document.querySelector("[name=amount]").value = amount;
+            document.querySelector("[name=oldbalanceOrg]").value = o1;
+            document.querySelector("[name=newbalanceOrig]").value = n1;
+            document.querySelector("[name=oldbalanceDest]").value = o2;
+            document.querySelector("[name=newbalanceDest]").value = n2;
+        }
+    </script>
+</head>
+
+<body>
+
+<header style="background: radial-gradient(circle at top left, #0d2b4a, #0a2540); padding: 40px 20px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+    <div style="max-width: 1200px; margin: auto; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 20px;">
+        
+        <div style="text-align: left;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="background: var(--primary); width: 12px; height: 35px; border-radius: 4px; box-shadow: 0 0 15px var(--primary);"></div>
+                <h1 style="font-size: 2.8rem; margin: 0; letter-spacing: -1.5px; background: linear-gradient(to right, #fff, #adbdcc); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">SecurePay AI</h1>
+            </div>
+            <div style="margin-top: 8px; display: inline-block; padding: 4px 12px; background: rgba(99, 91, 255, 0.1); border: 1px solid rgba(99, 91, 255, 0.3); border-radius: 20px;">
+                <p style="color: #818cf8; font-weight: 700; margin: 0; font-size: 0.8rem; letter-spacing: 2px;">
+                    <span style="opacity: 0.7;">ID:</span> LTVIP2026TMIDS46696
+                </p>
+            </div>
+        </div>
+        
+        <div style="position: relative; background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); padding: 15px 25px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+            <div style="position: absolute; top: -10px; right: 20px; background: var(--primary); color: white; font-size: 0.65rem; font-weight: 900; padding: 2px 10px; border-radius: 10px; text-transform: uppercase; letter-spacing: 1px;">Expert Group</div>
+            
+            <div style="display: flex; flex-direction: column; gap: 5px;">
+                <div style="color: #adbdcc; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Research & Development Team</div>
+                <div style="color: #fff; font-size: 0.95rem; font-weight: 400; letter-spacing: 0.5px;">
+                    <span style="color: var(--primary); font-weight: 700;">SK. Shahul</span> <span style="opacity: 0.3; margin: 0 5px;">|</span> 
+                    SK. Abdul Rajak <span style="opacity: 0.3; margin: 0 5px;">|</span> 
+                    M. Isaac <span style="opacity: 0.3; margin: 0 5px;">|</span> 
+                    Y. Sasi Kumar
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <style>
+        .nav-link {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            padding: 8px 0;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        .nav-link:hover {
+            color: #fff;
+            border-bottom: 2px solid var(--primary);
+            text-shadow: 0 0 10px rgba(99, 91, 255, 0.5);
+        }
+    </style>
+</header>
+
+<section id="predict">
+    <div class="container">
+        {% if predicted %}
+        <div id="resultBox" class="result show {% if 'Fraud' in prediction_text %}res-fraud{% else %}res-safe{% endif %}">
+            {{ prediction_text }}
+        </div>
+        {% endif %}
+
+        <div class="section-title">
+            <h2>Transaction Analysis</h2>
+            <p>Enter transaction details below to evaluate risk probability.</p>
+        </div>
+
+        <form id="predictForm" action="/predict" method="post" onsubmit="showLoader()">
+            <div class="form-grid">
+                <div>
+                    <label>Timeline (Step)</label>
+                    <input type="number" name="step" placeholder="e.g. 1" required>
+                </div>
+                <div>
+                    <label>Transaction Type</label>
+                    <select name="type" required>
+                        <option value="" disabled selected>Select...</option>
+                        <option value="PAYMENT">PAYMENT</option>
+                        <option value="TRANSFER">TRANSFER</option>
+                        <option value="CASH_OUT">CASH_OUT</option>
+                        <option value="DEBIT">DEBIT</option>
+                        <option value="CASH_IN">CASH_IN</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Transaction Amount</label>
+                    <input type="number" step="any" name="amount" placeholder="0.00" required>
+                </div>
+                <div>
+                    <label>Origin Old Balance</label>
+                    <input type="number" step="any" name="oldbalanceOrg" placeholder="0.00" required>
+                </div>
+                <div>
+                    <label>Origin New Balance</label>
+                    <input type="number" step="any" name="newbalanceOrig" placeholder="0.00" required>
+                </div>
+                <div>
+                    <label>Destination Old Balance</label>
+                    <input type="number" step="any" name="oldbalanceDest" placeholder="0.00" required>
+                </div>
+                <div>
+                    <label>Destination New Balance</label>
+                    <input type="number" step="any" name="newbalanceDest" placeholder="0.00" required>
+                </div>
+            </div>
+
+            <div id="loader" class="loader">
+                Scanning transaction patterns...
+            </div>
+
+            <div class="btn-group">
+                <button id="predictBtn" type="submit" class="btn-predict">Analyze Transaction</button>
+                <button type="button" class="btn-clear" onclick="clearForm()">Reset Form</button>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section id="about">
+    <div class="section-title">
+        <h2>The Science of Fraud Detection</h2>
+        <p>How our Random Forest / Decision Tree model evaluates your data.</p>
+    </div>
+    
+    <div class="grid-info">
+        <div class="card">
+            <h3>Pattern Recognition</h3>
+            <p>The model analyzes the correlation between the amount sent and the depletion of the origin account. Fraudulent agents often empty an account entirely in a single "TRANSFER" followed by a "CASH_OUT".</p>
+        </div>
+        <div class="card">
+            <h3>Anomaly Detection</h3>
+            <p>By comparing the <code>oldbalance</code> and <code>newbalance</code>, the AI detects if the transaction actually occurred as stated. Discrepancies in these balances are a primary indicator of synthetic fraud.</p>
+        </div>
+    </div>
+</section>
+
+
+
+<section id="data-guide">
+    <div class="section-title">
+        <h2>Understanding the Features</h2>
+    </div>
+    <div class="card">
+        <table style="width:100%; border-collapse: collapse; text-align: left;">
+            <tr style="border-bottom: 2px solid #eee;">
+                <th style="padding: 10px;">Feature</th>
+                <th style="padding: 10px;">Description</th>
+            </tr>
+            <tr>
+                <td style="padding: 10px;"><strong>Step</strong></td>
+                <td>Unit of time (1 step = 1 hour). Useful for detecting high-frequency attacks.</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px;"><strong>Type</strong></td>
+                <td>Method of transfer. "TRANSFER" and "CASH_OUT" are statistically higher risk.</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px;"><strong>Balances</strong></td>
+                <td>Used to verify the mathematical integrity of the sender and receiver accounts.</td>
+            </tr>
+        </table>
+    </div>
+</section>
+
+<section id="tests">
+    <div class="section-title">
+        <h2>Quick Test Scenarios</h2>
+        <p>Click "Fill Form" to see how the model reacts to different data signatures.</p>
+    </div>
+
+    <div class="grid-info">
+        <div class="card" style="border-top: 4px solid var(--success);">
+            <h3>Normal Behavior</h3>
+            <p>A small payment where the destination balance increases correctly.</p>
+            <code>
+                Type: PAYMENT | Amt: 500<br>
+                Origin: 10000 -> 9500<br>
+                Dest: 2000 -> 2500
+            </code>
+            <button class="btn-predict" style="padding: 8px;" onclick="fillTestCase(1)">Fill Form</button>
+        </div>
+
+        <div class="card" style="border-top: 4px solid var(--danger);">
+            <h3>Suspicious Activity</h3>
+            <p>A large transfer that completely empties the origin account to zero.</p>
+            <code>
+                Type: TRANSFER | Amt: 900,000<br>
+                Origin: 900k -> 0<br>
+                Dest: 0 -> 0 (Hidden)
+            </code>
+            <button class="btn-predict" style="padding: 8px;" onclick="fillTestCase(2)">Fill Form</button>
+        </div>
+    </div>
+</section>
+
+<footer style="background: #0a2540; color: #8898aa; padding: 60px 20px; margin-top: 60px; border-top: 1px solid rgba(255,255,255,0.1);">
+    <div style="max-width: 1100px; margin: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 40px; text-align: left;">
+        
+        <div>
+            <h3 style="color: white; margin-bottom: 20px;">SecurePay AI</h3>
+            <p style="font-size: 0.9rem; line-height: 1.8;">
+                A cutting-edge Machine Learning solution designed to detect and prevent financial fraud in real-time. 
+                Built for the 2026 Academic Internship Program.
+            </p>
+        </div>
+
+        <div>
+            <h3 style="color: white; margin-bottom: 20px;">Project Team</h3>
+            <ul style="list-style: none; padding: 0; font-size: 0.9rem; line-height: 2;">
+                <li><strong style="color: #635bff;">Leader:</strong> Shaik Shahul</li>
+                <li><strong style="color: #635bff;">Member:</strong> Isaac Mukiri</li>
+                <li><strong style="color: #635bff;">Member:</strong> Yeripilli Sasi Kumar</li>
+                <li><strong style="color: #635bff;">Member:</strong> Shaik Abdul Rajak</li>
+            </ul>
+        </div>
+
+        <div>
+            <h3 style="color: white; margin-bottom: 20px;">Identification</h3>
+            <p style="font-size: 0.9rem;">
+                <strong>Team ID:</strong> LTVIP2026TMIDS46696<br>
+                <strong>Team Size:</strong> 04 Members<br>
+                <strong>Year:</strong> 2026
+            </p>
+        </div>
+
+    </div>
+
+    <div style="margin-top: 50px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; opacity: 0.7; text-align: center;">
+        <p>&copy; 2026 Online Payments Fraud Detection Project. All Rights Reserved.</p>
+    </div>
+</footer>
+
+</body>
+</html>
